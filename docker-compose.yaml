@@ -1,0 +1,99 @@
+version: '3.0'
+
+services:
+  gateway1:
+    container_name: gateway1
+    image: node:lts-alpine
+    working_dir: /app
+    depends_on:
+      - postgres
+    volumes:
+      - ${PWD}/dist/apps/gateway:/app
+    command: sh -c "yarn install --modules-folder /node_modules && yarn global add nodemon && nodemon --legacy-watch --verbose main.js"
+    expose:
+      - 3000
+    ports:
+      - 3000:3000
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PASS=${DB_PASS}
+      - DB_USER=${DB_USER}
+      - DB_DATABASE=${DB_DATABASE}
+    networks:
+      blackbird:
+
+  gateway2:
+    container_name: gateway2
+    image: node:lts-alpine
+    working_dir: /app
+    depends_on:
+      - postgres
+    volumes:
+      - ${PWD}/dist/apps/gateway:/app
+    command: sh -c "yarn install --modules-folder /node_modules && yarn global add nodemon && nodemon --legacy-watch --verbose main.js"
+    expose:
+      - 3000
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PASS=${DB_PASS}
+      - DB_USER=${DB_USER}
+      - DB_DATABASE=${DB_DATABASE}
+    networks:
+      blackbird:
+
+  emitter:
+    image: node:lts-alpine
+    working_dir: /app
+    depends_on:
+      - postgres
+    volumes:
+      - ${PWD}/dist/apps/emitter:/app
+    command: sh -c "yarn install --modules-folder /node_modules && yarn global add nodemon && nodemon --legacy-watch --verbose main.js"
+    expose:
+      - 4000
+    ports:
+      - 4001:4000
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PASS=${DB_PASS}
+      - DB_USER=${DB_USER}
+      - DB_DATABASE=${DB_DATABASE}
+    networks:
+      blackbird:
+
+  clients:
+    image: node:lts-alpine
+    working_dir: /app
+    depends_on:
+      - gateway1
+      - gateway2
+    volumes:
+      - ${PWD}/dist/apps/client:/app
+    command: sh -c "yarn install --modules-folder /node_modules && yarn global add nodemon && nodemon --legacy-watch --verbose main.js"
+    environment:
+      - SOCKET_HOST1=ws://gateway1:3000
+      - SOCKET_HOST2=ws://gateway2:3000
+    deploy:
+      mode: replicated
+      replicas: 16
+    networks:
+      blackbird:
+
+  postgres:
+    build: ${PWD}/apps/postgres
+    hostname: ${DB_HOST}
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_MULTIPLE_DATABASES: ${DB_DATABASE}
+    expose:
+      - ${DB_PORT}
+    ports:
+      - ${DB_PORT}:${DB_PORT}
+    networks:
+      - blackbird
+
+networks:
+  blackbird:
+    driver: bridge
+    name: blackbird
